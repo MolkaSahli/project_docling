@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
-
 from pfe_ews.config import Settings
 from pfe_ews.io_utils import read_jsonl, slugify, stable_id, write_jsonl
 
@@ -76,45 +75,6 @@ def _docling_bbox_top_left(document: Any, page_no: int, bbox: Any) -> list[float
     return _bbox_list(bbox)
 
 
-def _llm_api_url(settings: Settings) -> str:
-    if settings.picture_description_url:
-        return settings.picture_description_url
-    if not settings.llm_base_url:
-        raise ValueError(
-            "PICTURE_DESCRIPTION_ENABLED=true mais LLM_BASE_URL est vide. "
-            "Renseignez LLM_BASE_URL ou PICTURE_DESCRIPTION_URL."
-        )
-    return urljoin(
-        settings.llm_base_url.rstrip("/") + "/",
-        settings.llm_endpoint_path.lstrip("/"),
-    )
-
-
-def _llm_headers(settings: Settings) -> dict[str, str]:
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        **settings.enterprise_extra_headers,
-    }
-    mode = settings.llm_auth_mode
-    if mode == "none":
-        return headers
-    if not settings.llm_api_key:
-        raise ValueError(
-            "Une cle LLM est requise pour la description d'images avec le mode "
-            f"{mode!r}."
-        )
-    if mode == "bearer":
-        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-    elif mode == "x-api-key":
-        headers["X-API-Key"] = settings.llm_api_key
-    elif mode == "custom":
-        headers[settings.llm_api_key_header] = settings.llm_api_key
-    else:
-        raise ValueError(f"Mode d'authentification LLM inconnu: {mode}")
-    return headers
-
-
 def _build_docling_converter(settings: Settings):
     """Docling = detecteur/reconstructeur de tables + detecteur/descripteur d'images."""
     try:
@@ -122,8 +82,8 @@ def _build_docling_converter(settings: Settings):
         from docling.datamodel.pipeline_options import (
             EasyOcrOptions,
             PdfPipelineOptions,
-            PictureDescriptionApiOptions,
             TableFormerMode,
+            smolvlm_picture_description,
         )
         from docling.document_converter import DocumentConverter, PdfFormatOption
     except ImportError as exc:
@@ -160,28 +120,44 @@ def _build_docling_converter(settings: Settings):
     options.table_structure_options.mode = TableFormerMode.ACCURATE
     options.table_structure_options.do_cell_matching = settings.docling_do_cell_matching
 
-    # Picture description Docling: uniquement les PictureItem detectes par Docling
-    # sont envoyes au VLM / endpoint OpenAI-compatible.
+    # Description locale des PictureItem avec le preset SmolVLM de Docling.
+    # Aucun endpoint LLM / aucune API key n'est utilise pour cette etape.
     if settings.picture_description_enabled:
         options.generate_picture_images = True
         options.images_scale = settings.picture_description_images_scale
         options.do_picture_description = True
-        options.enable_remote_services = True
 
-        params: dict[str, Any] = {
-            "model": settings.picture_description_model or settings.llm_model,
-            "temperature": 0.0,
-            "max_tokens": settings.picture_description_max_tokens,
-            **settings.picture_description_extra_body,
-        }
-        options.picture_description_options = PictureDescriptionApiOptions(
-            url=_llm_api_url(settings),
-            headers=_llm_headers(settings),
-            params=params,
-            prompt=settings.picture_description_prompt,
-            timeout=settings.picture_description_timeout_seconds,
-            picture_area_threshold=settings.picture_description_area_threshold,
+        # Important en environnement entreprise / offline : ne pas autoriser
+        # Docling a appeler un service distant pour la description d'images.
+        if hasattr(options, "enable_remote_services"):
+            options.enable_remote_services = False
+
+        # Le preset pointe vers HuggingFaceTB/SmolVLM-256M-Instruct.
+        # Avec DOCLING_ARTIFACTS_PATH renseigne, Docling le charge depuis
+        # le dossier local d'artifacts. deepcopy evite de modifier le preset
+        # global de Docling pour les conversions suivantes.
+        picture_options = copy.deepcopy(smolvlm_picture_description)
+        picture_options.prompt = settings.picture_description_prompt
+        picture_options.picture_area_threshold = (
+            settings.picture_description_area_threshold
         )
+
+        # Compatibilite avec les versions de Docling exposant generation_config.
+        if hasattr(picture_options, "generation_config"):
+            generation_config = dict(
+                getattr(picture_options, "generation_config", {}) or {}
+            )
+            generation_config["max_new_tokens"] = (
+                settings.picture_description_max_tokens
+            )
+            generation_config["do_sample"] = False
+            picture_options.generation_config = generation_config
+
+        # Certaines versions recentes exposent aussi un scale sur les options VLM.
+        if hasattr(picture_options, "scale"):
+            picture_options.scale = settings.picture_description_images_scale
+
+        options.picture_description_options = picture_options
     elif hasattr(options, "enable_remote_services"):
         options.enable_remote_services = False
 
