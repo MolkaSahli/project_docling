@@ -10,7 +10,9 @@ from dotenv import load_dotenv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(PROJECT_ROOT / ".env", override=False)
+# Dans cet environnement, le .env est place un niveau au-dessus de Pipeline_Principal.
+ENV_PATH = PROJECT_ROOT.parent / ".env"
+load_dotenv(ENV_PATH, override=False)
 
 
 def _env(name: str, default: str = "") -> str:
@@ -105,14 +107,10 @@ class Settings:
     hybrid_table_overlap_threshold: float
 
     picture_description_enabled: bool
-    picture_description_url: str
-    picture_description_model: str | None
     picture_description_prompt: str
-    picture_description_timeout_seconds: int
     picture_description_max_tokens: int
     picture_description_area_threshold: float
     picture_description_images_scale: float
-    picture_description_extra_body: dict[str, Any]
 
     chunk_max_tokens: int
     chunk_overlap_tokens: int
@@ -229,16 +227,11 @@ class Settings:
             picture_description_enabled=_env_bool(
                 "PICTURE_DESCRIPTION_ENABLED", False
             ),
-            picture_description_url=_env("PICTURE_DESCRIPTION_URL"),
-            picture_description_model=_env("PICTURE_DESCRIPTION_MODEL") or None,
             picture_description_prompt=_env(
                 "PICTURE_DESCRIPTION_PROMPT",
                 "Describe this figure from a credit-risk document in 3 to 6 concise sentences. "
                 "Preserve readable dates, labels, axes and material numerical values. "
                 "For a chart, explain the trend and relationships. Do not invent unreadable values.",
-            ),
-            picture_description_timeout_seconds=_env_int(
-                "PICTURE_DESCRIPTION_TIMEOUT_SECONDS", 120
             ),
             picture_description_max_tokens=_env_int(
                 "PICTURE_DESCRIPTION_MAX_TOKENS", 400
@@ -248,9 +241,6 @@ class Settings:
             ),
             picture_description_images_scale=_env_float(
                 "PICTURE_DESCRIPTION_IMAGES_SCALE", 2.0
-            ),
-            picture_description_extra_body=_env_json_object(
-                "PICTURE_DESCRIPTION_EXTRA_BODY_JSON"
             ),
             chunk_max_tokens=_env_int("CHUNK_MAX_TOKENS", 700),
             chunk_overlap_tokens=_env_int("CHUNK_OVERLAP_TOKENS", 100),
@@ -392,8 +382,13 @@ class Settings:
             ),
             "pymupdf_table_strategy": self.pymupdf_table_strategy,
             "picture_description_enabled": self.picture_description_enabled,
+            "picture_description_backend": (
+                "docling_local_smolvlm"
+                if self.picture_description_enabled
+                else None
+            ),
             "picture_description_model": (
-                self.picture_description_model or self.llm_model
+                "HuggingFaceTB/SmolVLM-256M-Instruct"
                 if self.picture_description_enabled
                 else None
             ),
