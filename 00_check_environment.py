@@ -66,6 +66,8 @@ def main() -> None:
         package_status("numpy"),
         package_status("openpyxl"),
         package_status("pydantic"),
+        package_status("transformers"),
+        package_status("torch"),
         package_status("reportlab"),
         package_status("rapidfuzz"),
     ]
@@ -102,6 +104,22 @@ def main() -> None:
         warnings.append("LLM_BASE_URL n'est pas renseignee dans .env.")
     if settings.docling_artifacts_path and not settings.docling_artifacts_path.exists():
         warnings.append("DOCLING_ARTIFACTS_PATH pointe vers un dossier inexistant.")
+
+    if settings.picture_description_enabled:
+        if not settings.docling_artifacts_path:
+            warnings.append(
+                "PICTURE_DESCRIPTION_ENABLED=true mais DOCLING_ARTIFACTS_PATH est vide."
+            )
+        else:
+            smolvlm_dir = (
+                settings.docling_artifacts_path
+                / "HuggingFaceTB--SmolVLM-256M-Instruct"
+            )
+            if not smolvlm_dir.exists():
+                warnings.append(
+                    "Description locale activee mais le modele SmolVLM est absent: "
+                    f"{smolvlm_dir}"
+                )
 
     if settings.run_connectivity_tests:
         connectivity: dict[str, object] = {}
