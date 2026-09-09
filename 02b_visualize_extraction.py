@@ -3,399 +3,171 @@ from __future__ import annotations
 import html
 import sys
 from pathlib import Path
-from typing import Any
 
 import markdown
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(
-    0,
-    str(PROJECT_ROOT / "src"),
-)
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from pfe_ews.config import Settings
-from pfe_ews.io_utils import read_jsonl
 
 
-CSS = """
+CSS = '''
 body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    background: #f5f6f8;
-    color: #202124;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 32px;
-}
-
-.document-header {
+    font-family: Arial, Helvetica, sans-serif;
+    max-width: 1100px;
+    margin: 40px auto;
+    padding: 0 30px;
+    line-height: 1.55;
+    color: #222;
     background: white;
-    padding: 24px;
-    border-radius: 12px;
-    margin-bottom: 24px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.08);
 }
 
-.page {
-    background: white;
-    margin-bottom: 30px;
-    padding: 24px;
-    border-radius: 12px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+h1, h2, h3, h4 {
+    margin-top: 1.4em;
+    margin-bottom: 0.6em;
 }
 
-.page-title {
-    border-bottom: 2px solid #ddd;
-    padding-bottom: 8px;
-    margin-bottom: 20px;
-}
-
-.unit {
-    border-left: 4px solid #999;
-    padding: 14px 18px;
-    margin: 16px 0;
-    background: #fafafa;
-}
-
-.unit.table {
-    border-left-color: #7656a8;
-}
-
-.unit.visual {
-    border-left-color: #d98324;
-}
-
-.unit.title,
-.unit.section-header {
-    border-left-color: #2878b5;
-}
-
-.unit.text {
-    border-left-color: #4c956c;
-}
-
-.badges {
-    margin-bottom: 10px;
-}
-
-.badge {
-    display: inline-block;
-    padding: 3px 8px;
-    margin-right: 6px;
-    border-radius: 10px;
-    background: #e9ecef;
-    font-size: 12px;
-    font-family: monospace;
-}
-
-.metadata {
-    font-family: monospace;
-    color: #666;
-    font-size: 12px;
-    margin-bottom: 10px;
+p {
+    margin: 0.7em 0;
 }
 
 table {
     border-collapse: collapse;
     width: 100%;
-    margin: 15px 0;
+    margin: 20px 0;
+    font-size: 14px;
 }
 
-th,
-td {
-    border: 1px solid #bbb;
-    padding: 8px;
+th, td {
+    border: 1px solid #999;
+    padding: 8px 10px;
     text-align: left;
     vertical-align: top;
 }
 
 th {
-    background: #eeeeee;
+    background: #f2f2f2;
+    font-weight: 600;
 }
 
-.visual-content {
-    background: #fff9ef;
-    padding: 15px;
-    border-radius: 8px;
+blockquote {
+    border-left: 4px solid #bbb;
+    margin-left: 0;
+    padding-left: 16px;
+    color: #555;
 }
-"""
+
+pre {
+    background: #f6f6f6;
+    padding: 12px;
+    overflow-x: auto;
+}
+
+code {
+    font-family: Consolas, monospace;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid #ddd;
+    margin: 28px 0;
+}
+'''
 
 
-def render_markdown(text: str) -> str:
-    return markdown.markdown(
-        text,
+def merged_markdown_to_html(
+    markdown_path: Path,
+    html_path: Path,
+) -> None:
+    """Convertit un .merged.md en HTML simple, proche d'un export Docling."""
+
+    md_text = markdown_path.read_text(
+        encoding="utf-8",
+    )
+
+    rendered = markdown.markdown(
+        md_text,
         extensions=[
             "tables",
             "fenced_code",
+            "sane_lists",
         ],
     )
 
-
-def render_unit(
-    unit: dict[str, Any],
-) -> str:
-
-    content_type = str(
-        unit.get("content_type") or "text"
+    title = markdown_path.name.replace(
+        ".merged.md",
+        "",
     )
 
-    source_engine = str(
-        unit.get("source_engine") or "unknown"
-    )
-
-    bbox = unit.get("bbox")
-
-    unit_id = unit.get("unit_id")
-
-    raw_text = str(
-        unit.get("text") or ""
-    )
-
-    content_html = render_markdown(
-        raw_text
-    )
-
-    if content_type == "visual":
-        content_html = (
-            '<div class="visual-content">'
-            + content_html
-            + "</div>"
-        )
-
-    return f"""
-    <div class="unit {html.escape(content_type)}">
-
-        <div class="badges">
-
-            <span class="badge">
-                {html.escape(content_type)}
-            </span>
-
-            <span class="badge">
-                {html.escape(source_engine)}
-            </span>
-
-        </div>
-
-        <div class="metadata">
-            unit_id={html.escape(str(unit_id))}
-            <br>
-            bbox={html.escape(str(bbox))}
-        </div>
-
-        {content_html}
-
-    </div>
-    """
-
-
-def generate_html(
-    units_path: Path,
-    output_path: Path,
-) -> None:
-
-    units = list(
-        read_jsonl(units_path)
-    )
-
-    pages: dict[
-        int | None,
-        list[dict[str, Any]]
-    ] = {}
-
-    for unit in units:
-
-        page_no = unit.get(
-            "page_number"
-        )
-
-        pages.setdefault(
-            page_no,
-            [],
-        ).append(unit)
-
-    if units:
-        source_file = units[0].get(
-            "source_file",
-            units_path.name,
-        )
-
-        counterparty = units[0].get(
-            "counterparty",
-            "",
-        )
-    else:
-        source_file = units_path.name
-        counterparty = ""
-
-    body_parts = []
-
-    for page_no, page_units in pages.items():
-
-        page_label = (
-            f"Page {page_no}"
-            if page_no is not None
-            else "Page inconnue"
-        )
-
-        units_html = "\n".join(
-            render_unit(unit)
-            for unit in page_units
-        )
-
-        body_parts.append(
-            f"""
-            <section class="page">
-
-                <h2 class="page-title">
-                    {html.escape(page_label)}
-                </h2>
-
-                {units_html}
-
-            </section>
-            """
-        )
-
-    document_html = f"""
-<!DOCTYPE html>
-
+    document = f'''<!DOCTYPE html>
 <html lang="fr">
-
 <head>
-
-<meta charset="UTF-8">
-
-<meta name="viewport"
-      content="width=device-width,
-               initial-scale=1.0">
-
-<title>
-Extraction - {html.escape(str(source_file))}
-</title>
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)}</title>
 <style>
 {CSS}
 </style>
-
 </head>
 
 <body>
-
-<div class="container">
-
-    <div class="document-header">
-
-        <h1>
-            Extraction documentaire
-        </h1>
-
-        <p>
-            <strong>Document :</strong>
-            {html.escape(str(source_file))}
-        </p>
-
-        <p>
-            <strong>Contrepartie :</strong>
-            {html.escape(str(counterparty))}
-        </p>
-
-        <p>
-            <strong>Unités extraites :</strong>
-            {len(units)}
-        </p>
-
-    </div>
-
-    {''.join(body_parts)}
-
-</div>
-
+{rendered}
 </body>
-
 </html>
-"""
+'''
 
-    output_path.write_text(
-        document_html,
+    html_path.write_text(
+        document,
         encoding="utf-8",
     )
 
 
 def main() -> None:
-
     settings = Settings.from_env()
 
-    manifest_path = (
-        settings.extracted_dir
-        / "extraction_manifest.jsonl"
+    extracted_dir = settings.extracted_dir
+
+    merged_files = sorted(
+        extracted_dir.rglob("*.merged.md")
     )
 
-    if not manifest_path.exists():
-        raise FileNotFoundError(
+    if not merged_files:
+        print(
+            "Aucun fichier .merged.md trouve dans :",
+            extracted_dir,
+        )
+        print(
             "Executez d'abord le script 02."
         )
-
-    documents = list(
-        read_jsonl(manifest_path)
-    )
+        return
 
     generated = 0
 
-    for document in documents:
+    for markdown_path in merged_files:
 
-        if document.get(
-            "extraction_status"
-        ) not in {
-            "success",
-            "skipped_existing",
-        }:
-            continue
-
-        canonical = document.get(
-            "canonical_units"
-        )
-
-        if not canonical:
-            continue
-
-        canonical_path = Path(
-            str(canonical)
-        )
-
-        if not canonical_path.exists():
-            continue
-
-        output_path = (
-            canonical_path.parent
-            / (
-                canonical_path.name
-                .replace(
-                    ".canonical.jsonl",
-                    ".extraction.html",
-                )
+        html_path = markdown_path.with_name(
+            markdown_path.name.replace(
+                ".merged.md",
+                ".extraction.html",
             )
         )
 
-        generate_html(
-            canonical_path,
-            output_path,
+        merged_markdown_to_html(
+            markdown_path,
+            html_path,
         )
 
         print(
-            f"HTML genere : "
-            f"{output_path}"
+            f"HTML genere : {html_path}"
         )
 
         generated += 1
 
+    print()
     print(
-        f"\n{generated} fichier(s) "
-        f"HTML genere(s)."
+        f"{generated} fichier(s) HTML genere(s)."
     )
 
 
