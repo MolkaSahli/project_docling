@@ -16,12 +16,6 @@ def _build_recursive_splitter(
     max_tokens: int,
     overlap_tokens: int,
 ):
-    """Build the standard splitter used for non-table canonical units.
-
-    length_function makes chunk_size/chunk_overlap token-based instead of
-    character-based, while RecursiveCharacterTextSplitter still prefers
-    paragraph/newline/space boundaries.
-    """
     try:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
     except ImportError as exc:
@@ -40,7 +34,6 @@ def _build_recursive_splitter(
 
 
 def _split_text(text: str, text_splitter: Any) -> list[str]:
-    """RecursiveCharacterTextSplitter for text, headings and visual summaries."""
     text = text.strip()
     if not text:
         return []
@@ -57,18 +50,152 @@ def _looks_like_markdown_table(text: str) -> bool:
     )
 
 
+def _parse_markdown_row(row: str) -> list[str]:
+    row = row.strip()
+    if not row.startswith("|"):
+        return []
+    if row.endswith("|"):
+        row = row[1:-1]
+    else:
+        row = row[1:]
+    return [cell.strip() for cell in row.split("|")]
+
+
+def _build_partial_row(cells: list[str], start: int, end: int) -> str:
+    partial_cells = [
+        cell if start <= index < end else ""
+        for index, cell in enumerate(cells)
+    ]
+    return "| " + " | ".join(partial_cells) + " |"
+
+
+def _split_oversized_cell(
+    *,
+    header: list[str],
+    cells: list[str],
+    cell_index: int,
+    tokenizer: Any,
+    max_tokens: int,
+    text_splitter: Any,
+) -> list[str]:
+    cell_text = cells[cell_index].strip()
+    if not cell_text:
+        return []
+
+    empty_row = _build_partial_row(
+        cells=["" for _ in cells],
+        start=0,
+        end=0,
+    )
+    base = "\n".join([*header, empty_row])
+    base_tokens = tokenizer.count_tokens(base)
+    available_tokens = max(50, max_tokens - base_tokens)
+
+    try:
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+    except ImportError as exc:
+        raise RuntimeError(
+            "langchain-text-splitters est requis pour le chunking textuel."
+        ) from exc
+
+    cell_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=available_tokens,
+        chunk_overlap=min(50, max(0, available_tokens // 8)),
+        length_function=tokenizer.count_tokens,
+        separators=["\n\n", "\n", ". ", "; ", ": ", " ", ""],
+        keep_separator=True,
+    )
+
+    parts = [
+        part.strip()
+        for part in cell_splitter.split_text(cell_text)
+        if part.strip()
+    ]
+
+    output: list[str] = []
+    for part in parts:
+        partial_cells = ["" for _ in cells]
+        partial_cells[cell_index] = part
+        row = "| " + " | ".join(partial_cells) + " |"
+        chunk = "\n".join([*header, row]).strip()
+
+        if tokenizer.count_tokens(chunk) > max_tokens:
+            LOGGER.warning(
+                "Une cellule reste trop longue apres split dedie; "
+                "fallback RecursiveCharacterTextSplitter final."
+            )
+            output.extend(_split_text(chunk, text_splitter))
+        else:
+            output.append(chunk)
+
+    return output
+
+
+def _split_oversized_table_row(
+    *,
+    header: list[str],
+    row: str,
+    tokenizer: Any,
+    max_tokens: int,
+    text_splitter: Any,
+) -> list[str]:
+    cells = _parse_markdown_row(row)
+
+    if not cells:
+        return _split_text("\n".join([*header, row]), text_splitter)
+
+    output: list[str] = []
+    group_start = 0
+
+    while group_start < len(cells):
+        group_end = group_start
+        best_chunk: str | None = None
+
+        while group_end < len(cells):
+            candidate_row = _build_partial_row(
+                cells=cells,
+                start=group_start,
+                end=group_end + 1,
+            )
+            candidate = "\n".join([*header, candidate_row]).strip()
+
+            if tokenizer.count_tokens(candidate) <= max_tokens:
+                best_chunk = candidate
+                group_end += 1
+                continue
+            break
+
+        if best_chunk is not None:
+            output.append(best_chunk)
+            group_start = group_end
+            continue
+
+        LOGGER.warning(
+            "Une cellule de tableau depasse CHUNK_MAX_TOKENS; "
+            "split RecursiveCharacterTextSplitter sur cette cellule uniquement."
+        )
+
+        output.extend(
+            _split_oversized_cell(
+                header=header,
+                cells=cells,
+                cell_index=group_start,
+                tokenizer=tokenizer,
+                max_tokens=max_tokens,
+                text_splitter=text_splitter,
+            )
+        )
+        group_start += 1
+
+    return [part.strip() for part in output if part.strip()]
+
+
 def _split_table(
     text: str,
     tokenizer: Any,
     max_tokens: int,
     text_splitter: Any,
 ) -> list[str]:
-    """Keep small tables intact; split large Markdown tables by rows.
-
-    The two Markdown header lines are repeated in every produced chunk.
-    If a table is not in Markdown pipe-table form, fall back to the standard
-    recursive text splitter rather than using a second custom text chunker.
-    """
     text = text.strip()
     if not text:
         return []
@@ -95,14 +222,29 @@ def _split_table(
         else:
             current_rows.append(row)
 
-        # Rare fallback: one single row is itself larger than the limit.
         single_row = "\n".join([*header, *current_rows])
-        if len(current_rows) == 1 and tokenizer.count_tokens(single_row) > max_tokens:
+
+        if (
+            len(current_rows) == 1
+            and tokenizer.count_tokens(single_row) > max_tokens
+        ):
             LOGGER.warning(
-                "Une ligne de tableau depasse CHUNK_MAX_TOKENS; "
-                "fallback RecursiveCharacterTextSplitter pour cette ligne."
+                "Ligne tableau trop longue | tokens=%s | max=%s | "
+                "split par cellules | apercu=%r",
+                tokenizer.count_tokens(single_row),
+                max_tokens,
+                row[:150],
             )
-            output.extend(_split_text(single_row, text_splitter))
+
+            output.extend(
+                _split_oversized_table_row(
+                    header=header,
+                    row=current_rows[0],
+                    tokenizer=tokenizer,
+                    max_tokens=max_tokens,
+                    text_splitter=text_splitter,
+                )
+            )
             current_rows = []
 
     if current_rows:
