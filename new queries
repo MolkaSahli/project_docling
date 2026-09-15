@@ -1,0 +1,152 @@
+RETRIEVAL_TASKS: tuple[RetrievalTask, ...] = (
+
+    RetrievalTask(
+        task_id="financials",
+        title="Financial performance and liquidity",
+        query=(
+            "Evidence of financial deterioration or weakening financial performance, "
+            "including declining revenue, declining EBITDA, margin compression, "
+            "falling profitability, operating losses, negative or deteriorating cash flow, "
+            "liquidity pressure, cash shortage, working capital deterioration, "
+            "delayed payments, increasing payment delays, reduced cash generation, "
+            "or weakening debt service capacity."
+        ),
+        expected_categories=(
+            "financials",
+            "new_potential_risk_driver",
+        ),
+    ),
+
+    RetrievalTask(
+        task_id="covenant_fbe",
+        title="Covenants and FBE",
+        query=(
+            "Evidence of covenant deterioration or financial breach events, "
+            "including covenant breach, expected covenant breach, reduced covenant headroom, "
+            "limited headroom, waiver request, covenant waiver, financial breach event, FBE, "
+            "failure to comply with financial covenants, deterioration in DSCR or ICR, "
+            "or worsening Net Debt to EBITDA relative to covenant thresholds."
+        ),
+        expected_categories=(
+            "covenant_fbe",
+        ),
+    ),
+
+    RetrievalTask(
+        task_id="corporate_leverage",
+        title="Corporate leverage and refinancing",
+        query=(
+            "Evidence of deterioration in corporate leverage or refinancing capacity, "
+            "including increasing net debt, increasing leverage, worsening Net Debt to EBITDA, "
+            "higher debt burden, reduced debt service capacity, increasing interest burden, "
+            "significant upcoming debt maturities, refinancing pressure, refinancing needs, "
+            "difficulty refinancing existing debt, bullet repayments, acquisition-related debt, "
+            "or debt increase following shareholder distributions or dividends."
+        ),
+        expected_categories=(
+            "corporate_leverage",
+            "new_potential_risk_driver",
+        ),
+    ),
+
+    RetrievalTask(
+        task_id="governance_geopolitical_eis",
+        title="Governance, geopolitical risk and EIS",
+        query=(
+            "Evidence of governance, management, geopolitical or external-event deterioration, "
+            "including management instability, CEO or CFO departure, key management changes, "
+            "shareholder conflict, governance deficiencies, fraud allegations, litigation, "
+            "sanctions exposure, geopolitical tensions, country risk deterioration, war, strikes, "
+            "supply-chain disruption, political instability, or external events that may impair "
+            "the company's operations or credit quality."
+        ),
+        expected_categories=(
+            "governance_geopolitical_eis",
+            "events",
+        ),
+    ),
+
+    RetrievalTask(
+        task_id="esg",
+        title="ESG risks",
+        query=(
+            "Evidence of material ESG-related risks or adverse ESG events, "
+            "including environmental incidents, pollution, environmental fines, "
+            "climate transition risk, social controversy, labor issues, health and safety incidents, "
+            "human rights concerns, governance controversies, regulatory ESG issues, "
+            "or ESG events that may negatively affect operations, reputation, cash flow, "
+            "or credit quality."
+        ),
+        expected_categories=(
+            "esg",
+        ),
+    ),
+
+    RetrievalTask(
+        task_id="operational_legal_events",
+        title="Operational, commercial and legal events",
+        query=(
+            "Evidence of adverse operational, commercial or legal events, "
+            "including loss of a key customer, contract termination, revenue concentration risk, "
+            "plant or site closure, production disruption, supply interruption, cyber incident, "
+            "major operational failure, legal dispute, tax dispute, restructuring, "
+            "customer insolvency, supplier failure, business interruption, "
+            "or other events that may materially weaken the company's activity or credit profile."
+        ),
+        expected_categories=(
+            "events",
+            "new_potential_risk_driver",
+        ),
+    ),
+
+    RetrievalTask(
+        task_id="rating",
+        title="Internal rating",
+        query=(
+            "Evidence of changes or deterioration in internal credit rating, "
+            "including rating downgrade, negative rating migration, worsening internal grade, "
+            "increase in probability of default, deterioration in credit assessment, "
+            "rating review, rating watch, or other changes in internal credit quality. "
+            "Also retrieve evidence of rating improvement or upgrade when explicitly documented."
+        ),
+        expected_categories=(
+            "internal_rating",
+        ),
+    ),
+
+    RetrievalTask(
+        task_id="official_status",
+        title="Official risk statuses",
+        query=(
+            "Evidence of entry into, exit from, confirmation of, or deterioration toward "
+            "official credit-risk statuses, including UTP or unlikely-to-pay, Grey List, Gray List, "
+            "Watchlist, WL, NPE, non-performing exposure, PD equal to 100 percent, "
+            "forbearance, close to default, default-related status, "
+            "or changes in official risk classification."
+        ),
+        expected_categories=(
+            "utp",
+            "grey_list",
+            "watchlist",
+            "npe",
+            "pd_100",
+        ),
+    ),
+
+    RetrievalTask(
+        task_id="forward_looking",
+        title="Forward-looking risks and potential alerts",
+        query=(
+            "Evidence of forward-looking deterioration or potential early warning signals, "
+            "including expected financial deterioration, forecast decline, downside scenarios, "
+            "negative outlook, limited future headroom, upcoming liquidity pressure, "
+            "upcoming debt maturity, refinancing risk, expected covenant pressure, "
+            "management concerns, identified vulnerabilities, adverse forecasts, "
+            "potential future risks, or warning signs that could precede Watchlist, UTP, NPE, "
+            "rating downgrade, or other credit deterioration."
+        ),
+        expected_categories=(
+            "new_potential_risk_driver",
+        ),
+    ),
+)
