@@ -1,0 +1,234 @@
+# ================================================================
+# PFE EWS - CONFIGURATION
+# ================================================================
+
+# ------------------------------------------------
+# 1. CONTREPARTIE / DONNEES
+# ------------------------------------------------
+
+DEFAULT_COUNTERPARTY=CONTREPARTIE_INCONNUE
+
+# Laisser vide pour traiter toutes les contreparties
+TARGET_COUNTERPARTY=
+
+
+# ------------------------------------------------
+# 2. CONVERSION WORD / DOCUMENTS
+# ------------------------------------------------
+
+# Sous Linux, laisser vide si libreoffice est dans le PATH
+LIBREOFFICE_PATH=
+
+REQUIRE_WORD_TO_PDF=true
+ALLOW_DIRECT_WORD_FALLBACK=false
+
+
+# ------------------------------------------------
+# 3. DOCLING
+# ------------------------------------------------
+
+# Parent directory contenant les modèles Docling locaux
+DOCLING_ARTIFACTS_PATH=/home/j31461/project/models/docling_models
+
+DOCLING_OCR_ENABLED=true
+DOCLING_OCR_LANGUAGES=fr,en
+
+# Pour ton pipeline actuel
+DOCLING_FORCE_FULL_PAGE_OCR=true
+DOCLING_DO_CELL_MATCHING=false
+
+DOCLING_MAX_NUM_PAGES=500
+DOCLING_MAX_FILE_SIZE_MB=250
+
+# true si tu veux forcer une nouvelle extraction
+FORCE_REEXTRACT=false
+
+
+# ------------------------------------------------
+# 4. PYMUPDF4LLM / EXTRACTION HYBRIDE
+# ------------------------------------------------
+
+PYMUPDF_OCR_LANGUAGE=fra+eng
+PYMUPDF_OCR_DPI=300
+
+PYMUPDF_TABLE_STRATEGY=lines
+
+# Si PyMuPDF et Docling détectent la même table,
+# Docling est conservé au-dessus de ce seuil d'overlap
+HYBRID_TABLE_OVERLAP_THRESHOLD=0.40
+
+
+# ------------------------------------------------
+# 5. DESCRIPTION DES IMAGES / FIGURES
+# ------------------------------------------------
+
+PICTURE_DESCRIPTION_ENABLED=true
+
+# Modèle local utilisé pour les images
+PICTURE_DESCRIPTION_MODEL=HuggingFaceTB/SmolVLM-256M-Instruct
+
+PICTURE_DESCRIPTION_TIMEOUT_SECONDS=120
+PICTURE_DESCRIPTION_MAX_TOKENS=400
+
+# Ignore les très petites images / logos
+PICTURE_DESCRIPTION_AREA_THRESHOLD=0.02
+
+PICTURE_DESCRIPTION_IMAGES_SCALE=2.0
+
+PICTURE_DESCRIPTION_EXTRA_BODY_JSON={}
+
+PICTURE_DESCRIPTION_PROMPT=Describe this figure from a credit-risk document. Preserve readable dates, labels, axes and material numerical values. Explain the main trend or relationship. Do not invent unreadable values.
+
+# Laisser vide si le modèle est chargé localement
+PICTURE_DESCRIPTION_URL=
+
+
+# ------------------------------------------------
+# 6. CHUNKING
+# ------------------------------------------------
+
+# Configuration actuellement testée
+CHUNK_MAX_TOKENS=1000
+CHUNK_OVERLAP_TOKENS=200
+
+# Si tu as un tokenizer local spécifique
+CHUNK_TOKENIZER_PATH=
+
+CHUNK_INCLUDE_PICTURE_OCR=true
+
+
+# ------------------------------------------------
+# 7. EMBEDDINGS
+# ------------------------------------------------
+
+# URL de votre gateway interne
+EMBEDDING_BASE_URL=
+
+EMBEDDING_ENDPOINT_PATH=/embeddings
+
+EMBEDDING_API_KEY=
+
+# bearer / x-api-key / custom / none
+EMBEDDING_AUTH_MODE=bearer
+
+EMBEDDING_API_KEY_HEADER=X-API-Key
+
+EMBEDDING_MODEL=bge-m3-ITG
+
+EMBEDDING_BATCH_SIZE=16
+EMBEDDING_TIMEOUT_SECONDS=180
+
+EMBEDDING_DIMENSIONS=
+
+EMBEDDING_QUERY_PREFIX=
+EMBEDDING_PASSAGE_PREFIX=
+EMBEDDING_QUERY_INSTRUCTION=
+
+EMBEDDING_EXTRA_BODY_JSON={}
+
+
+# ------------------------------------------------
+# 8. LLM - EXTRACTION DES EVENEMENTS
+# ------------------------------------------------
+
+LLM_BASE_URL=
+
+LLM_ENDPOINT_PATH=/chat/completions
+
+LLM_API_KEY=
+
+# bearer / x-api-key / custom / none
+LLM_AUTH_MODE=bearer
+
+LLM_API_KEY_HEADER=X-API-Key
+
+LLM_MODEL=mistral-medium-2508-ITG
+
+LLM_TIMEOUT_SECONDS=240
+
+# Extraction déterministe
+LLM_TEMPERATURE=0.0
+
+# Nombre maximum de tokens générés par le LLM
+LLM_MAX_OUTPUT_TOKENS=6000
+
+LLM_USE_JSON_MODE=false
+
+# Facultatif : modèle de revue / deuxième passe
+LLM_REVIEW_MODEL=
+
+LLM_EXTRA_BODY_JSON={}
+
+
+# ------------------------------------------------
+# 9. TLS / CERTIFICATS / RESEAU ENTREPRISE
+# ------------------------------------------------
+
+TLS_VERIFY=true
+
+CA_BUNDLE_PATH=
+
+ENTERPRISE_EXTRA_HEADERS_JSON={}
+
+HTTP_MAX_RETRIES=3
+HTTP_BACKOFF_SECONDS=2.0
+
+
+# ------------------------------------------------
+# 10. VECTOR DATABASE - QDRANT LOCAL
+# ------------------------------------------------
+
+VECTOR_STORE_BACKEND=qdrant_local
+
+QDRANT_LOCAL_PATH=data/index/qdrant
+
+QDRANT_COLLECTION=credit_risk_chunks
+
+ALLOW_NUMPY_FALLBACK=true
+
+SAVE_EMBEDDINGS_COPY=true
+
+
+# ------------------------------------------------
+# 11. RETRIEVAL HYBRIDE
+# ------------------------------------------------
+
+# Nombre de candidats Dense
+RETRIEVAL_DENSE_TOP_K=30
+
+# Nombre de candidats BM25
+RETRIEVAL_LEXICAL_TOP_K=30
+
+# Résultats finaux d'un search() classique
+RETRIEVAL_FINAL_TOP_K=12
+
+# Paramètre Reciprocal Rank Fusion
+RRF_K=60
+
+# Nombre de chunks envoyés au LLM pour chaque task du 06
+MAX_RETRIEVED_CHUNKS_PER_TASK=12
+
+
+# ------------------------------------------------
+# 12. VALIDATION DES EVENEMENTS
+# ------------------------------------------------
+
+MIN_EVIDENCE_FUZZY_SCORE=90
+
+DEDUPE_SIMILARITY_THRESHOLD=88
+
+
+# ------------------------------------------------
+# 13. RAPPORT PDF
+# ------------------------------------------------
+
+REPORT_TITLE=Rapport des événements candidats Early Warning Signals
+
+REPORT_CONFIDENTIALITY_LABEL=CONFIDENTIEL - PROTOTYPE PFE - À VALIDER PAR UN ANALYSTE
+
+
+# ------------------------------------------------
+# 14. TESTS DE CONNECTIVITE
+# ------------------------------------------------
+
+RUN_CONNECTIVITY_TESTS=false
